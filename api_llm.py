@@ -6,17 +6,17 @@ import json
 
 app = Flask(__name__)
 
-model = GPT4All(r"C:\Users\crist\OneDrive\Desktop\proyecto\Meta-Llama-3-8B-Instruct.Q4_0.gguf")
+# Carga tu modelo local (ajusta la ruta si es necesario)
+model = GPT4All(r"C:\Users\crist\OneDrive\Desktop\proyecto\gemma-2b-it-Q4_0.gguf")
 
-# Define aquí tu esquema de base de datos (tablas y columnas)
-db_schema = {
+# Esquema de base de datos con descripción semántica
+db_schema_descripciones = {
     "empleados": {
-        "id": "NUMBER",
-        "nombre": "VARCHAR2(100)",
-        "puesto": "VARCHAR2(100)",
-        "salario": "NUMBER"
-    },
-    # agrega más tablas según necesites
+        "id": "Identificador único del empleado",
+        "nombre": "Nombre completo del empleado",
+        "puesto": "Cargo o rol del empleado, como desarrollador o analista",
+        "salario": "Remuneración mensual del empleado en pesos chilenos. También se puede llamar sueldo"
+    }
 }
 
 @app.route('/generar_sql', methods=['POST'])
@@ -26,25 +26,25 @@ def generar_sql():
     if not pregunta:
         return jsonify({"error": "No se recibió una pregunta"}), 400
 
-    # Convierte el esquema a JSON con indentación para legibilidad en prompt
-    schema_json = json.dumps(db_schema, indent=2)
+    schema_json = json.dumps(db_schema_descripciones, indent=2, ensure_ascii=False)
 
     prompt_sql = f"""
-Eres un experto en SQL con el siguiente esquema de base de datos:
+Eres un experto en SQL con acceso al siguiente esquema de base de datos, junto con la descripción de cada campo:
 
 {schema_json}
 
-Solo escribe la consulta SQL que responde esta pregunta, nada más, sin explicaciones:
+Responde SOLO con la consulta SQL en formato Oracle (sin explicaciones, sin encabezado, sin comentarios):
 
 Pregunta: {pregunta}
 Consulta SQL:
 """
+
     start = time.time()
-    output = model.generate(prompt_sql, max_tokens=50)
+    output = model.generate(prompt_sql, max_tokens=100, temp=0.2)
     end = time.time()
 
-    match = re.search(r"(?i)(SELECT .*?;)", output, re.DOTALL)
-    consulta = match.group(1) if match else "-- NO SQL FOUND --"
+    match = re.search(r"(?i)(SELECT[\s\S]*?)(;|\n|$)", output)
+    consulta = match.group(1).strip() if match else "-- NO SQL FOUND --"
 
     return jsonify({
         "sql": consulta,
